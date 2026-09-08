@@ -17,15 +17,17 @@ export async function POST(req: NextRequest) {
 
     await dbConnect();
 
-    const existing = await User.findOne({ email: email.toLowerCase() });
+    const normalizedEmail = (email as string).toLowerCase().trim();
+
+    const existing = await User.findOne({ email: normalizedEmail });
     if (existing) {
       return NextResponse.json({ error: 'An account with this email already exists' }, { status: 409 });
     }
 
     const hashedPassword = await bcrypt.hash(password, 12);
     const user = await User.create({
-      name,
-      email: email.toLowerCase(),
+      name: (name as string).trim(),
+      email: normalizedEmail,
       password: hashedPassword,
       role: 'teacher',
     });
@@ -34,8 +36,9 @@ export async function POST(req: NextRequest) {
       { message: 'Account created successfully', userId: user._id.toString() },
       { status: 201 }
     );
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Registration error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    const message = error instanceof Error ? error.message : 'Internal server error';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

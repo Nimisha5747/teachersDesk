@@ -2,19 +2,16 @@ import NextAuth from 'next-auth';
 import { MongoDBAdapter } from '@auth/mongodb-adapter';
 import Google from 'next-auth/providers/google';
 import Credentials from 'next-auth/providers/credentials';
-import { MongoClient } from 'mongodb';
 import bcrypt from 'bcryptjs';
 import dbConnect from '@/lib/mongodb';
+import clientPromise from '@/lib/mongodb-client';
 import User from '@/lib/models/User';
-
-const client = new MongoClient(process.env.MONGODB_URI as string);
+import { authConfig } from '@/auth.config';
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
-  adapter: MongoDBAdapter(client),
+  ...authConfig,
+  adapter: MongoDBAdapter(clientPromise),
   session: { strategy: 'jwt' },
-  pages: {
-    signIn: '/login',
-  },
   providers: [
     Google({
       clientId: process.env.GOOGLE_CLIENT_ID!,
@@ -30,7 +27,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         if (!credentials?.email || !credentials?.password) return null;
 
         await dbConnect();
-        const user = await User.findOne({ email: credentials.email }).select('+password');
+        const email = (credentials.email as string).toLowerCase().trim();
+        const user = await User.findOne({ email }).select('+password');
 
         if (!user || !user.password) return null;
 
@@ -47,6 +45,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     }),
   ],
   callbacks: {
+    ...authConfig.callbacks,
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
